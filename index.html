@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>9 Giorni in Abruzzo — Il nostro itinerario</title>
+
+<!-- ============================================================
+  CONFIGURAZIONE FIREBASE — leggi qui prima di tutto
+  ============================================================
+  Questo sito usa Cloud Firestore per salvare le tappe del viaggio,
+  cosi' che tutti quelli con cui condividi il link vedano le stesse
+  modifiche in tempo reale (es. se sposti una tappa dal telefono,
+  si aggiorna anche sul portatile).
+
+  Per collegarlo al TUO database:
+  1. Vai su https://console.firebase.google.com → crea un progetto
+  2. Aggiungi una "app web" (icona </>) al progetto
+  3. Copia l'oggetto firebaseConfig che ti viene mostrato
+  4. Incollalo qui sotto al posto di quello segnaposto
+  5. Nella sezione "Firestore Database" del progetto, crealo in
+     modalita' "test" (o imposta regole che permettano lettura/
+     scrittura, dato che qui non c'e' login utente)
+
+  Finche' non lo colleghi, il sito funziona comunque in
+  "modalita' locale": puoi modificare tutto, ma le modifiche
+  restano solo nella scheda del browser aperta e si perdono
+  ricaricando la pagina. Un banner in alto te lo ricorda.
+=============================================================== -->
+<script>
+  window.__FIREBASE_CONFIG__ = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+
+<style>
+  :root{
+    --stone:#EAE6D9;
+    --stone-deep:#DCD6C4;
+    --ink:#2B2620;
+    --ink-soft:#5A5347;
+    --paper:#FBF9F4;
+    --cotto:#B5502D;
+    --cotto-deep:#8F3D22;
+    --gransasso:#46586B;
+    --adriatico:#2F6F6B;
+    --ginestra:#C99A2E;
+    --line:#D4CDBA;
+    --shadow: 0 12px 30px -14px rgba(43,38,32,0.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--stone);
+    color:var(--ink);
+    font-family:'Work Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    letter-spacing:-0.01em;
+  }
+  .mono{
+    font-family:'JetBrains Mono', monospace;
+    letter-spacing:0.02em;
+  }
+  a{color:var(--cotto-deep);}
+  button{font-family:inherit;cursor:pointer;}
+  :focus-visible{outline:3px solid var(--gransasso); outline-offset:2px;}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+
+  /* ---------- top bar ---------- */
+  .demo-banner{
+    background:var(--cotto-deep);
+    color:var(--paper);
+    text-align:center;
+    font-size:0.82rem;
+    padding:7px 14px;
+    display:none;
+  }
+  .demo-banner.show{display:block;}
+  .demo-banner strong{font-weight:600;}
+
+  header.site{
+    padding:28px clamp(16px,4vw,48px) 18px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    flex-wrap:wrap;
+    gap:22px;
+    align-items:flex-end;
+    justify-content:space-between;
+  }
+  header.site .title-block h1{
+    margin:0 0 4px;
+    font-size:clamp(1.7rem, 3.2vw, 2.5rem);
+    line-height:1.05;
+  }
+  header.site .title-block p{
+    margin:0;
+    color:var(--ink-soft);
+    max-width:52ch;
+    font-size:0.98rem;
+  }
+  .eyebrow{
+    text-transform:uppercase;
+    font-size:0.72rem;
+    letter-spacing:0.14em;
+    color:var(--cotto-deep);
+    font-weight:600;
+    margin-bottom:6px;
+    display:block;
+  }
+
+  /* ---------- base badge (signature element) ---------- */
+  .basecamp{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:14px 20px;
+    box-shadow:var(--shadow);
+    display:flex;
+    align-items:center;
+    gap:14px;
+    min-width:280px;
+  }
+  .basecamp .seal{
+    flex:none;
+    width:56px;height:56px;
+    border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, #E7C468, var(--ginestra) 60%, #9c7a1f 100%);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.35), 0 4px 10px rgba(0,0,0,0.25);
+    position:relative;
+  }
+  .basecamp .seal svg{width:28px;height:28px;fill:#3a2c0c;}
+  .basecamp .info{flex:1;min-width:0;}
+  .basecamp .info .label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--ink-soft);}
+  .basecamp .info h2{margin:2px 0 3px;font-size:1.25rem;}
+  .basecamp .info .sub{font-size:0.82rem;color:var(--ink-soft);}
+  .basecamp select{
+    margin-top:8px;
+    font-size:0.78rem;
+    padding:4px 8px;
+    border-radius:8px;
+    border:1px solid var(--line);
+    background:var(--stone);
+    color:var(--ink);
+    max-width:100%;
+  }
+
+  /* ---------- day timeline ---------- */
+  .timeline{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    padding:16px clamp(16px,4vw,48px);
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+  }
+  .timeline::-webkit-scrollbar{height:6px;}
+  .timeline::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .day-chip{
+    flex:none;
+    border:1px solid var(--line);
+    background:var(--stone);
+    border-radius:999px;
+    padding:7px 14px;
+    font-size:0.82rem;
+    font-weight:500;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:var(--ink-soft);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .day-chip:hover{transform:translateY(-1px);}
+  .day-chip .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .day-chip.active{
+    background:var(--ink);
+    color:var(--paper);
+    border-color:var(--ink);
+    box-shadow:var(--shadow);
+  }
+
+  /* ---------- layout ---------- */
+  .layout{
+    display:grid;
+    grid-template-columns: minmax(0,1.15fr) minmax(320px,0.85fr);
+    gap:0;
+    align-items:start;
+  }
+  @media (max-width: 900px){
+    .layout{grid-template-columns:1fr;}
+  }
+
+  #map{
+    height: min(72vh, 640px);
+    width:100%;
+    background:#dfe6e4;
+  }
+  @media (max-width:900px){ #map{height:56vh;} }
+
+  .map-toolbar{
+    position:sticky; top:0; z-index:5;
+  }
+
+  .leaflet-popup-content-wrapper{
+    border-radius:12px;
+    font-family:'Work Sans',sans-serif;
+  }
+  .popup-photo{width:100%;height:110px;object-fit:cover;border-radius:8px;margin-bottom:6px;}
+  .popup-title{font-family:'Fraunces',serif;font-weight:600;font-size:1rem;margin:0 0 3px;}
+  .popup-day{font-size:0.72rem;color:var(--ink-soft);}
+
+  /* ---------- side rail ---------- */
+  .rail{
+    border-left:1px solid var(--line);
+    padding:18px clamp(14px,2vw,26px) 40px;
+    max-height:min(72vh,640px);
+    overflow-y:auto;
+  }
+  @media (max-width:900px){ .rail{border-left:none;border-top:1px solid var(--line); max-height:none;} }
+
+  .rail-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    margin-bottom:12px;
+    position:sticky; top:0;
+    background:var(--stone);
+    padding:6px 0 10px;
+    z-index:2;
+  }
+  .rail-head h3{margin:0;font-size:1.05rem;}
+  .search-box{
+    display:flex; align-items:center; gap:8px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:6px 10px;
+    margin-bottom:14px;
+  }
+  .search-box input{
+    border:none;background:transparent;outline:none;
+    font-family:inherit;font-size:0.88rem;width:100%;color:var(--ink);
+  }
+
+  .stop-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:14px;
+    margin-bottom:12px;
+    overflow:hidden;
+    transition:box-shadow .15s ease;
+  }
+  .stop-card:hover{box-shadow:var(--shadow);}
+  .stop-card.is-base{
+    border-color:var(--ginestra);
+    box-shadow:0 0 0 2px rgba(201,154,46,0.35);
+  }
+  .stop-card.is-current{
+    border-color:var(--cotto);
+  }
+  .stop-photo-wrap{position:relative;}
+  .stop-photo{width:100%;height:150px;object-fit:cover;display:block;background:var(--stone-deep);}
+  .stop-tag{
+    position:absolute; top:10px; left:10px;
+    font-size:0.68rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em;
+    padding:3px 9px; border-radius:999px; color:#fff;
+    display:flex; align-items:center; gap:5px;
+  }
+  .stop-body{padding:12px 14px 14px;}
+  .stop-body .day-label{
+    font-size:0.7rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.08em;
+    display:flex; align-items:center; gap:6px; margin-bottom:4px;
+  }
+  .stop-body .day-label .dot{width:7px;height:7px;border-radius:50%;}
+  .stop-body h4{margin:0 0 5px; font-family:'Fraunces',serif; font-size:1.08rem;}
+  .stop-body p.desc{margin:0 0 10px; font-size:0.87rem; color:var(--ink-soft); line-height:1.45;}
+  .stop-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{
+    border:1px solid var(--line);
+    background:var(--stone);
+    color:var(--ink);
+    padding:6px 11px;
+    border-radius:8px;
+    font-size:0.78rem;
+    font-weight:500;
+    display:inline-flex;align-items:center;gap:5px;
+  }
+  .btn:hover{background:var(--stone-deep);}
+  .btn.primary{background:var(--ink); color:var(--paper); border-color:var(--ink);}
+  .btn.primary:hover{background:#000;}
+  .btn.gold{background:var(--ginestra); color:#3a2c0c; border-color:var(--ginestra);}
+  .btn.danger{color:var(--cotto-deep); border-color:#e0c3b6;}
+  .btn.small{padding:5px 9px;font-size:0.72rem;}
+
+  /* inline edit form */
+  .edit-form{padding:12px 14px 16px; display:grid; gap:8px; background:var(--stone);}
+  .edit-form label{font-size:0.72rem; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:3px;}
+  .edit-form input, .edit-form select, .edit-form textarea{
+    width:100%; padding:7px 9px; border-radius:8px; border:1px solid var(--line);
+    font-family:inherit; font-size:0.86rem; background:var(--paper); color:var(--ink);
+  }
+  .edit-form textarea{min-height:60px; resize:vertical;}
+  .edit-row{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .edit-actions{display:flex; gap:8px; margin-top:4px;}
+
+  .add-stop-btn{
+    width:100%;
+    padding:12px;
+    border:1.5px dashed var(--line);
+    background:transparent;
+    border-radius:14px;
+    color:var(--ink-soft);
+    font-weight:500;
+    margin-bottom:14px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .add-stop-btn:hover{border-color:var(--cotto); color:var(--cotto-deep);}
+  .add-stop-btn.placing{
+    border-color:var(--cotto); color:var(--cotto-deep); background:#fff2ec;
+  }
+
+  footer.credit{
+    padding:22px clamp(16px,4vw,48px) 40px;
+    color:var(--ink-soft);
+    font-size:0.8rem;
+    border-top:1px solid var(--line);
+    max-width:80ch;
+  }
+  footer.credit a{color:var(--gransasso); font-weight:600;}
+
+  .empty-hint{
+    font-size:0.85rem; color:var(--ink-soft); padding:10px; text-align:center;
+  }
+
+  .badge-pin{
+    background:transparent; border:none;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner" id="demoBanner">
+  ⚠ <strong>Modalita' demo locale:</strong> i dati non sono ancora collegati a Firestore — le modifiche resteranno solo in questa scheda. Guarda il commento in cima al file HTML per collegare il tuo progetto Firebase.
+</div>
+
+<header class="site">
+  <div class="title-block">
+    <span class="eyebrow">Vacanza in Abruzzo · 9 giorni</span>
+    <h1>Dal Gran Sasso alla Costa dei Trabocchi</h1>
+    <p>La mappa e l'itinerario delle nostre tappe, dai borghi di pietra dell'Aquilano al mare, con base fissa a Fano a Corno.</p>
+  </div>
+
+  <div class="basecamp">
+    <div class="seal" title="Base del viaggio">
+      <svg viewBox="0 0 24 24"><path d="M12 2 2 9.5V22h6v-7h8v7h6V9.5L12 2Z"/></svg>
+    </div>
+    <div class="info">
+      <span class="label">La nostra base</span>
+      <h2 id="baseName">Fano a Corno</h2>
+      <div class="sub" id="baseSub">Isola del Gran Sasso d'Italia (TE) · ai piedi del Corno Grande</div>
+      <select id="baseSelect" aria-label="Cambia la tappa base"></select>
+    </div>
+  </div>
+</header>
+
+<div class="timeline" id="timeline"></div>
+
+<div class="layout">
+  <div>
+    <div id="map"></div>
+  </div>
+
+  <aside class="rail">
+    <div class="rail-head">
+      <h3 id="railTitle">Tutte le tappe</h3>
+      <span class="mono" id="railCount" style="font-size:0.75rem;color:var(--ink-soft);"></span>
+    </div>
+
+    <div class="search-box">
+      🔎 <input type="text" id="searchInput" placeholder="Cerca una tappa (es. Scanno, castello, mare...)">
+    </div>
+
+    <button class="add-stop-btn" id="addStopBtn">＋ Aggiungi una tappa (clicca poi sulla mappa)</button>
+
+    <div id="cardsContainer"></div>
+    <div class="empty-hint" id="emptyHint" style="display:none;">Nessuna tappa trovata.</div>
+  </aside>
+</div>
+
+<footer class="credit">
+  Luoghi e alcune fotografie selezionate a partire dall'itinerario di
+  <a href="https://www.lorenzotaccioli.it/itinerario-di-9-giorni-in-abruzzo-cosa-vedere/" target="_blank" rel="noopener">Lorenzo Taccioli — "Itinerario di 9 giorni in Abruzzo"</a>,
+  che consigliamo di leggere per tutti i dettagli pratici di ogni tappa. Descrizioni riscritte per questo sito. Foto: © Lorenzo Taccioli, usate come riferimento visivo delle tappe.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import {
+  getFirestore, collection, doc, onSnapshot, setDoc, addDoc,
+  updateDoc, deleteDoc, getDocs, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+/* =========================================================
+   DATI INIZIALI — itinerario dei 9 giorni in Abruzzo
+   (basato sui luoghi indicati sul sito di Lorenzo Taccioli,
+   descrizioni riscritte, coordinate GPS approssimative)
+========================================================= */
+const DAY_META = {
+  0: { label:"Base", color:"#C99A2E" },
+  1: { label:"Giorno 1 · Civitella & Teramo", color:"#8B5E3C" },
+  2: { label:"Giorno 2 · Campo Imperatore", color:"#46586B" },
+  3: { label:"Giorno 3 · Borghi dell'Aquilano", color:"#6B7A3C" },
+  4: { label:"Giorno 4 · Fontecchio & L'Aquila", color:"#7A4B6B" },
+  5: { label:"Giorno 5 · Alba Fucens, Gole, Scanno", color:"#2F6F6B" },
+  6: { label:"Giorno 6 · Sulmona & Roccascalegna", color:"#B5502D" },
+  7: { label:"Giorno 7 · Lanciano & Trabocchi", color:"#1D6FA5" },
+  8: { label:"Giorno 8 · Ortona & Pescara", color:"#3F7D5C" },
+  9: { label:"Giorno 9 · Silvi Alta & Atri", color:"#C9862E" },
+};
+
+const SEED_STOPS = [
+  { nome:"Fano a Corno", giorno:0, isBase:true, categoria:"Base / alloggio",
+    lat:42.4899, lng:13.6169,
+    descrizione:"La nostra base per tutto il viaggio: frazione di Isola del Gran Sasso d'Italia, ai piedi del Corno Grande, punto di partenza comodo per Campo Imperatore e i borghi dell'Aquilano.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Corno-Grande-del-Gran-Sasso-che-spunta-dal-vado-di-Corno.jpg" },
+
+  { nome:"Civitella del Tronto", giorno:1, categoria:"Borgo & fortezza",
+    lat:42.7908, lng:13.6875,
+    descrizione:"Borgo tra i più belli d'Italia, dominato da un'imponente fortezza borbonica con vista sulle vallate e sul Gran Sasso.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/08/Porta-Napoli-e-la-chiesa-di-San-Lorenzo-Civitella-del-Tronto.jpg" },
+  { nome:"Teramo", giorno:1, categoria:"Città",
+    lat:42.6589, lng:13.7040,
+    descrizione:"Capoluogo dal centro storico stratificato nei secoli, con resti di teatro e anfiteatro romano a pochi passi dal duomo.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Patrimonio-artistico-e-storico-di-Teramo.jpg" },
+
+  { nome:"Campo Imperatore", giorno:2, categoria:"Montagna",
+    lat:42.4600, lng:13.5600,
+    descrizione:"Il grande altopiano soprannominato \"piccolo Tibet\", punto di partenza per il trekking verso il Corno Grande del Gran Sasso.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Le-colline-di-Campo-Imperatore.jpg" },
+  { nome:"Rocca Calascio", giorno:2, categoria:"Castello",
+    lat:42.4136, lng:13.6392,
+    descrizione:"Uno dei simboli dell'Abruzzo: i resti di uno dei castelli più alti d'Italia, location di numerosi film.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Rocca-Calascio-Simbolo-Abruzzo.jpg" },
+
+  { nome:"Castel del Monte (AQ)", giorno:3, categoria:"Borgo",
+    lat:42.4264, lng:13.6944,
+    descrizione:"Borgo pastorale alle porte di Campo Imperatore, con il caratteristico Rione Ricetto dalle case in pietra addossate.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Borgo-storico-di-Castel-del-Monte-Dal-Rione-Ricetto-al-resto-del-centro.jpg" },
+  { nome:"Santo Stefano di Sessanio", giorno:3, categoria:"Borgo",
+    lat:42.3838, lng:13.6236,
+    descrizione:"Uno dei borghi più celebri d'Abruzzo, rinato come albergo diffuso, con la sua torre medicea a dominare le case in pietra.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Santo-Stefano-di-Sessanio-Borghi-piu-belli-di-Italia.jpg" },
+  { nome:"Fossa", giorno:3, categoria:"Arte & archeologia",
+    lat:42.3308, lng:13.4903,
+    descrizione:"La chiesa di Santa Maria ad Cryptas custodisce affreschi duecenteschi tra i meglio conservati d'Italia; nei dintorni una vasta necropoli antica.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Intera-chiesetta-di-Santa-Maria-ad-Cryptas-interamente-affrescata.jpg" },
+  { nome:"Bominaco", giorno:3, categoria:"Arte & archeologia",
+    lat:42.2947, lng:13.5308,
+    descrizione:"Piccolo borgo noto per l'oratorio di San Pellegrino, chiamato la \"cappella Sistina d'Abruzzo\" per i suoi affreschi.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Affreschi-oratorio-di-San-Pellegrino-a-Bominaco.jpg" },
+
+  { nome:"Fontecchio", giorno:4, categoria:"Borgo",
+    lat:42.2664, lng:13.5636,
+    descrizione:"Borgo medievale poco conosciuto, con una fontana monumentale trecentesca e vicoli in salita da scoprire con calma.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Fontecchio-Cosa-vedere-in-Abruzzo.jpg" },
+  { nome:"L'Aquila", giorno:4, categoria:"Città",
+    lat:42.3498, lng:13.3995,
+    descrizione:"Città capoluogo in piena rinascita dopo il terremoto del 2009: basilica di Collemaggio, fontana delle 99 cannelle, forte Spagnolo.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Facciata-della-basilica-di-Collemaggio-con-Prato-davanti.jpg" },
+
+  { nome:"Alba Fucens", giorno:5, categoria:"Arte & archeologia",
+    lat:42.0972, lng:13.4139,
+    descrizione:"Il sito archeologico più importante d'Abruzzo: i resti di un antico avamposto romano con anfiteatro ben conservato.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Alba-Fucens-e-il-suo-anfiteatro.jpg" },
+  { nome:"Gole di Aielli-Celano", giorno:5, categoria:"Natura & trekking",
+    lat:42.0644, lng:13.5750,
+    descrizione:"Trekking spettacolare tra pareti rocciose alte fino a 200 metri, distanti pochi metri l'una dall'altra.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Le-pareti-verticali-delle-Gole-di-Aielli-Celano-distanti-pochi-metri-tra-loro.jpg" },
+  { nome:"Scanno", giorno:5, categoria:"Borgo & lago",
+    lat:41.9106, lng:13.9106,
+    descrizione:"Borgo arroccato reso celebre dal vicino lago a forma di cuore, raggiungibile con una breve passeggiata panoramica.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Lago-a-forma-di-cuore-di-Scanno.jpg" },
+
+  { nome:"Sulmona", giorno:6, categoria:"Città",
+    lat:42.0500, lng:13.9333,
+    descrizione:"Città dei confetti ai piedi del monte Morrone, con l'acquedotto svevo e un centro storico vivo di sera.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Chiesa-Palazzo-della-Santissima-Annunziata-di-Sulmona-di-notte.jpg" },
+  { nome:"Eremo di San Bartolomeo in Legio", giorno:6, categoria:"Eremo",
+    lat:42.1667, lng:14.0264,
+    descrizione:"Eremo trecentesco scavato in uno sperone di roccia, raggiungibile solo a piedi tra le montagne di Roccamorice.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Eremo-di-San-Bartolomeo-in-Legio-scavato-in-uno-sperone-di-roccia-di-50-metri.jpg" },
+  { nome:"Roccascalegna", giorno:6, categoria:"Castello",
+    lat:42.0672, lng:14.3719,
+    descrizione:"Borgo medievale sorpreso da un castello costruito letteralmente a strapiombo su uno sperone di roccia.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Castello-di-Roccascalegna-costruito-su-di-uno-sperone-di-roccia-Cosa-vedere-in-Abruzzo.jpg" },
+
+  { nome:"Lanciano", giorno:7, categoria:"Città",
+    lat:42.2306, lng:14.3892,
+    descrizione:"Città nota per un celebre miracolo eucaristico, con un centro storico articolato attorno al ponte di Diocleziano.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Centro-storico-di-Lanciano-visto-dal-ponte-di-Diocleziano.jpg" },
+  { nome:"Costa dei Trabocchi", giorno:7, categoria:"Mare",
+    lat:42.2833, lng:14.4667,
+    descrizione:"Il tratto di costa tra Ortona e Vasto punteggiato dai trabocchi, antiche macchine da pesca in legno protese sul mare.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Trabocco-Lupone-a-San-Vito-Chietino-Costa-dei-Trabocchi.jpg" },
+
+  { nome:"Ortona", giorno:8, categoria:"Città & mare",
+    lat:42.3559, lng:14.4028,
+    descrizione:"Cittadina segnata dalla battaglia del 1943, con il castello Aragonese affacciato sull'Adriatico.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Interni-del-Castello-Aragonese-di-Ortona.jpg" },
+  { nome:"Pescara", giorno:8, categoria:"Città",
+    lat:42.4618, lng:14.2161,
+    descrizione:"La città più recente d'Abruzzo, con la pineta dannunziana, il ponte del Mare e la casa natale di D'Annunzio.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Basilica-della-Madonna-dei-Sette-Dolori-Pescara.jpg" },
+
+  { nome:"Silvi Alta", giorno:9, categoria:"Belvedere",
+    lat:42.5833, lng:14.1000,
+    descrizione:"Piccolo borgo collinare con un belvedere che regala una vista lunghissima sulla costa adriatica.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Belvedere-di-Silvi-Alta-Perla-dell-Adriatico.jpg" },
+  { nome:"Atri", giorno:9, categoria:"Natura & storia",
+    lat:42.5786, lng:13.9942,
+    descrizione:"Città celebre per i calanchi che incidono le colline circostanti, con un bel centro storico e piante di liquirizia lungo i sentieri.",
+    foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Percorsi-escursionistici-tra-i-calanchi-di-Atri.jpg" },
+];
+
+/* =========================================================
+   FIREBASE INIT (con fallback a stato locale in memoria)
+========================================================= */
+const cfg = window.__FIREBASE_CONFIG__;
+const isConfigured = cfg && cfg.apiKey && cfg.apiKey !== "YOUR_API_KEY";
+let db = null;
+let stopsCollection = null;
+
+let localStops = []; // usato solo in modalita' demo locale
+const localListeners = [];
+function localEmit(){ localListeners.forEach(fn => fn(localStops)); }
+
+if (isConfigured){
+  const app = initializeApp(cfg);
+  db = getFirestore(app);
+  stopsCollection = collection(db, "tappe");
+} else {
+  document.getElementById('demoBanner').classList.add('show');
+}
+
+/* Seed: se Firestore e' vuoto, popolalo con i dati iniziali.
+   In modalita' locale, popola semplicemente l'array locale. */
+async function ensureSeeded(){
+  if (isConfigured){
+    const snap = await getDocs(stopsCollection);
+    if (snap.empty){
+      const batch = writeBatch(db);
+      SEED_STOPS.forEach(s => {
+        const ref = doc(stopsCollection);
+        batch.set(ref, s);
+      });
+      await batch.commit();
+    }
+  } else {
+    localStops = SEED_STOPS.map((s,i) => ({ id: "local-"+i, ...s }));
+    localEmit();
+  }
+}
+
+function subscribeStops(callback){
+  if (isConfigured){
+    return onSnapshot(stopsCollection, (snap) => {
+      const arr = [];
+      snap.forEach(d => arr.push({ id:d.id, ...d.data() }));
+      callback(arr);
+    });
+  } else {
+    localListeners.push(callback);
+    callback(localStops);
+    return () => {};
+  }
+}
+
+async function saveStop(id, data){
+  if (isConfigured){
+    await updateDoc(doc(stopsCollection, id), data);
+  } else {
+    localStops = localStops.map(s => s.id === id ? { ...s, ...data } : s);
+    localEmit();
+  }
+}
+
+async function createStop(data){
+  if (isConfigured){
+    await addDoc(stopsCollection, data);
+  } else {
+    const id = "local-" + Math.random().toString(36).slice(2,9);
+    localStops = [...localStops, { id, ...data }];
+    localEmit();
+  }
+}
+
+async function removeStop(id){
+  if (isConfigured){
+    await deleteDoc(doc(stopsCollection, id));
+  } else {
+    localStops = localStops.filter(s => s.id !== id);
+    localEmit();
+  }
+}
+
+async function setBase(id){
+  if (isConfigured){
+    const snap = await getDocs(stopsCollection);
+    const batch = writeBatch(db);
+    snap.forEach(d => {
+      const isThis = d.id === id;
+      if (!!d.data().isBase !== isThis){
+        batch.update(d.ref, { isBase:isThis });
+      }
+    });
+    await batch.commit();
+  } else {
+    localStops = localStops.map(s => ({ ...s, isBase: s.id === id }));
+    localEmit();
+  }
+}
+
+/* =========================================================
+   MAPPA (Leaflet)
+========================================================= */
+const map = L.map('map', { scrollWheelZoom:true }).setView([42.35, 13.9], 9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom:18
+}).addTo(map);
+
+const markersById = new Map();
+let placingMode = false;
+
+function dayColor(giorno){ return (DAY_META[giorno] || DAY_META[0]).color; }
+
+function pinIcon(color, isBase, isCurrent){
+  const size = isBase ? 34 : 26;
+  const ring = isCurrent ? `box-shadow:0 0 0 4px rgba(181,80,45,0.35);` : '';
+  const shape = isBase
+    ? `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="${color}" stroke="#fff" stroke-width="1.2" d="M12 1 1 9v13h7v-7h8v7h7V9L12 1Z"/></svg>`
+    : `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="${color}" stroke="#fff" stroke-width="1.2" d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8Z"/><circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>`;
+  return L.divIcon({
+    className:'badge-pin',
+    html:`<div style="filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)); ${ring} border-radius:50%;">${shape}</div>`,
+    iconSize:[size,size],
+    iconAnchor:[size/2, size],
+    popupAnchor:[0, -size]
+  });
+}
+
+function renderMarkers(stops, currentId){
+  markersById.forEach(m => map.removeLayer(m));
+  markersById.clear();
+  stops.forEach(s => {
+    const marker = L.marker([s.lat, s.lng], {
+      icon: pinIcon(dayColor(s.giorno), s.isBase, s.id === currentId)
+    }).addTo(map);
+    marker.bindPopup(`
+      <img class="popup-photo" src="${s.foto}" alt="${escapeHtml(s.nome)}">
+      <div class="popup-day" style="color:${dayColor(s.giorno)};font-weight:600;">${DAY_META[s.giorno]?.label || ''}</div>
+      <p class="popup-title">${escapeHtml(s.nome)}</p>
+      <div style="font-size:0.8rem;color:#5A5347;">${escapeHtml(s.categoria||'')}</div>
+    `);
+    marker.on('click', () => setCurrent(s.id));
+    markersById.set(s.id, marker);
+  });
+}
+
+map.on('click', (e) => {
+  if (!placingMode) return;
+  placingMode = false;
+  document.getElementById('addStopBtn').classList.remove('placing');
+  document.getElementById('addStopBtn').textContent = '＋ Aggiungi una tappa (clicca poi sulla mappa)';
+  openNewStopForm(e.latlng.lat, e.latlng.lng);
+});
+
+/* =========================================================
+   STATO UI
+========================================================= */
+let allStops = [];
+let activeDay = 'all';
+let searchTerm = '';
+let currentId = null;   // "tappa attuale" evidenziata (non e' la base)
+let editingId = null;
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setCurrent(id){
+  currentId = (currentId === id) ? null : id;
+  render();
+}
+
+/* ---- timeline (selettore giorni) ---- */
+function renderTimeline(){
+  const el = document.getElementById('timeline');
+  const days = [0,1,2,3,4,5,6,7,8,9];
+  el.innerHTML = days.map(d => {
+    const meta = DAY_META[d];
+    const active = activeDay === d ? 'active' : '';
+    const label = d === 0 ? 'Base' : meta.label.split('·')[0].trim();
+    return `<button class="day-chip ${active}" data-day="${d}">
+      <span class="dot" style="background:${meta.color}"></span>${label}
+    </button>`;
+  }).join('') + `<button class="day-chip ${activeDay==='all'?'active':''}" data-day="all"><span class="dot" style="background:#999"></span>Tutti i giorni</button>`;
+
+  el.querySelectorAll('.day-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const d = btn.dataset.day;
+      activeDay = d === 'all' ? 'all' : Number(d);
+      render();
+    });
+  });
+}
+
+/* ---- base badge ---- */
+function renderBaseBadge(stops){
+  const base = stops.find(s => s.isBase);
+  document.getElementById('baseName').textContent = base ? base.nome : '—';
+  document.getElementById('baseSub').textContent = base ? (base.categoria + ' · ' + base.descrizione.slice(0,60) + '…') : '';
+
+  const sel = document.getElementById('baseSelect');
+  sel.innerHTML = stops.map(s => `<option value="${s.id}" ${s.isBase?'selected':''}>${escapeHtml(s.nome)}</option>`).join('');
+  sel.onchange = () => setBase(sel.value);
+}
+
+/* ---- lista tappe ---- */
+function filteredStops(){
+  return allStops
+    .filter(s => activeDay === 'all' ? true : s.giorno === activeDay)
+    .filter(s => {
+      if (!searchTerm) return true;
+      const t = searchTerm.toLowerCase();
+      return s.nome.toLowerCase().includes(t) || (s.categoria||'').toLowerCase().includes(t) || (s.descrizione||'').toLowerCase().includes(t);
+    })
+    .sort((a,b) => (a.giorno - b.giorno) || a.nome.localeCompare(b.nome));
+}
+
+function cardTemplate(s){
+  const meta = DAY_META[s.giorno] || DAY_META[0];
+  const isEditing = editingId === s.id;
+  const classes = ['stop-card'];
+  if (s.isBase) classes.push('is-base');
+  if (s.id === currentId) classes.push('is-current');
+
+  if (isEditing){
+    return `<div class="${classes.join(' ')}" data-id="${s.id}">
+      <form class="edit-form" data-id="${s.id}">
+        <div>
+          <label>Nome</label>
+          <input name="nome" value="${escapeHtml(s.nome)}" required>
+        </div>
+        <div class="edit-row">
+          <div>
+            <label>Giorno</label>
+            <select name="giorno">
+              ${Object.entries(DAY_META).map(([k,v]) => `<option value="${k}" ${Number(k)===s.giorno?'selected':''}>${k==='0'?'Base':v.label}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Categoria</label>
+            <input name="categoria" value="${escapeHtml(s.categoria||'')}">
+          </div>
+        </div>
+        <div>
+          <label>Descrizione</label>
+          <textarea name="descrizione">${escapeHtml(s.descrizione||'')}</textarea>
+        </div>
+        <div class="edit-row">
+          <div>
+            <label>Latitudine</label>
+            <input name="lat" type="number" step="any" value="${s.lat}" required>
+          </div>
+          <div>
+            <label>Longitudine</label>
+            <input name="lng" type="number" step="any" value="${s.lng}" required>
+          </div>
+        </div>
+        <div>
+          <label>URL foto</label>
+          <input name="foto" value="${escapeHtml(s.foto||'')}">
+        </div>
+        <div class="edit-actions">
+          <button type="submit" class="btn primary small">Salva modifiche</button>
+          <button type="button" class="btn small" data-action="cancel">Annulla</button>
+        </div>
+      </form>
+    </div>`;
+  }
+
+  return `<div class="${classes.join(' ')}" data-id="${s.id}">
+    <div class="stop-photo-wrap">
+      <img class="stop-photo" src="${escapeHtml(s.foto)}" alt="${escapeHtml(s.nome)}" loading="lazy">
+      <span class="stop-tag" style="background:${meta.color}">${s.isBase ? '★ Base' : (s.giorno===0?'Base':'Giorno '+s.giorno)}</span>
+    </div>
+    <div class="stop-body">
+      <div class="day-label"><span class="dot" style="background:${meta.color}"></span>${s.categoria || ''}</div>
+      <h4>${escapeHtml(s.nome)}</h4>
+      <p class="desc">${escapeHtml(s.descrizione||'')}</p>
+      <div class="stop-actions">
+        <button class="btn small" data-action="locate">📍 Vai sulla mappa</button>
+        <button class="btn small" data-action="edit">✎ Modifica</button>
+        ${!s.isBase ? `<button class="btn small gold" data-action="setbase">Imposta come base</button>` : ''}
+        ${!s.isBase ? `<button class="btn small danger" data-action="delete">Rimuovi</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCards(){
+  const list = filteredStops();
+  document.getElementById('cardsContainer').innerHTML = list.map(cardTemplate).join('');
+  document.getElementById('emptyHint').style.display = list.length ? 'none' : 'block';
+  document.getElementById('railCount').textContent = `${list.length} tapp${list.length===1?'a':'e'}`;
+  document.getElementById('railTitle').textContent = activeDay === 'all' ? 'Tutte le tappe' : (DAY_META[activeDay]?.label || 'Tappe');
+
+  document.querySelectorAll('.stop-card').forEach(card => {
+    const id = card.dataset.id;
+    const stop = allStops.find(s => s.id === id);
+    if (!stop) return;
+
+    card.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const action = btn.dataset.action;
+        if (action === 'locate'){
+          map.flyTo([stop.lat, stop.lng], 13, { duration:0.6 });
+          const m = markersById.get(id);
+          if (m) m.openPopup();
+          setCurrent(id);
+        } else if (action === 'edit'){
+          editingId = id; render();
+        } else if (action === 'cancel'){
+          editingId = null; render();
+        } else if (action === 'setbase'){
+          setBase(id);
+        } else if (action === 'delete'){
+          if (confirm(`Rimuovere "${stop.nome}" dall'itinerario?`)) removeStop(id);
+        }
+      });
+    });
+
+    const form = card.querySelector('form.edit-form');
+    if (form){
+      form.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const fd = new FormData(form);
+        saveStop(id, {
+          nome: fd.get('nome').trim(),
+          giorno: Number(fd.get('giorno')),
+          categoria: fd.get('categoria').trim(),
+          descrizione: fd.get('descrizione').trim(),
+          lat: Number(fd.get('lat')),
+          lng: Number(fd.get('lng')),
+          foto: fd.get('foto').trim(),
+        });
+        editingId = null;
+      });
+    }
+  });
+}
+
+/* ---- aggiunta nuova tappa via click sulla mappa ---- */
+function openNewStopForm(lat, lng){
+  const day = activeDay === 'all' ? 1 : activeDay;
+  createStop({
+    nome:"Nuova tappa",
+    giorno: day === 0 ? 1 : day,
+    categoria:"Da definire",
+    descrizione:"Aggiungi qui una descrizione.",
+    lat, lng,
+    foto:"https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=800&q=60"
+  });
+}
+
+document.getElementById('addStopBtn').addEventListener('click', () => {
+  placingMode = !placingMode;
+  const btn = document.getElementById('addStopBtn');
+  btn.classList.toggle('placing', placingMode);
+  btn.textContent = placingMode ? '↳ Clicca ora un punto sulla mappa…' : '＋ Aggiungi una tappa (clicca poi sulla mappa)';
+});
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchTerm = e.target.value;
+  render();
+});
+
+/* =========================================================
+   RENDER PRINCIPALE
+========================================================= */
+function render(){
+  renderTimeline();
+  renderBaseBadge(allStops);
+  renderMarkers(allStops, currentId);
+  renderCards();
+}
+
+(async function init(){
+  await ensureSeeded();
+  subscribeStops((stops) => {
+    allStops = stops;
+    render();
+  });
+})();
+</script>
+</body>
+</html>
