@@ -400,6 +400,7 @@
     </div>
 
     <button class="add-stop-btn" id="addStopBtn">＋ Aggiungi una tappa (clicca poi sulla mappa)</button>
+    <button class="add-stop-btn" id="addExtraBtn" style="margin-top:-4px;">✨ Aggiungi le 15 mete extra suggerite</button>
 
     <div id="cardsContainer"></div>
     <div class="empty-hint" id="emptyHint" style="display:none;">Nessuna tappa trovata.</div>
@@ -436,7 +437,81 @@ const DAY_META = {
   7: { label:"Giorno 7 · Lanciano & Trabocchi", color:"#1D6FA5" },
   8: { label:"Giorno 8 · Ortona & Pescara", color:"#3F7D5C" },
   9: { label:"Giorno 9 · Silvi Alta & Atri", color:"#C9862E" },
+  10: { label:"Extra · Parco Nazionale d'Abruzzo", color:"#3F7A44" },
+  11: { label:"Extra · Majella", color:"#6E4A2E" },
+  12: { label:"Extra · Chieti & Capestrano", color:"#8E4585" },
+  13: { label:"Extra · Costa Sud (Vasto)", color:"#1590A6" },
+  14: { label:"Extra · Vicino alla base", color:"#A6862E" },
+  15: { label:"Extra · Borghi minori Aquilano", color:"#4A6B8A" },
 };
+
+const EXTRA_STOPS = [
+  { nome:"Pescasseroli", giorno:10, categoria:"Borgo & parco",
+    lat:41.8000, lng:13.7830,
+    descrizione:"Il centro più importante del Parco Nazionale d'Abruzzo, Lazio e Molise: musei naturalistici, aree faunistiche e sentieri per avvistare l'orso marsicano.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Pescasseroli.jpg" },
+  { nome:"Civitella Alfedena e Lago di Barrea", giorno:10, categoria:"Borgo & lago",
+    lat:41.7658, lng:13.9256,
+    descrizione:"Uno dei borghi più piccoli e integri del parco, con vista sul lago di Barrea; qui ha sede il Museo del Lupo Appenninico.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Civitella_Alfedena.jpg" },
+  { nome:"Opi", giorno:10, categoria:"Borgo panoramico",
+    lat:41.7936, lng:13.8283,
+    descrizione:"Borgo arroccato all'ingresso del parco, con vista sulla Val Fondillo; il museo del camoscio racconta la fauna del territorio.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Opi_(AQ).jpg" },
+
+  { nome:"Caramanico Terme", giorno:11, categoria:"Borgo termale",
+    lat:42.1372, lng:14.0044,
+    descrizione:"Borgo termale alla confluenza di due fiumi, porta d'accesso al Parco della Majella, con un centro storico arroccato su un promontorio.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Caramanico_Terme_-_panoramio_(cropped).jpg" },
+  { nome:"Fara San Martino", giorno:11, categoria:"Natura & borgo",
+    lat:42.0847, lng:14.2019,
+    descrizione:"La \"capitale della pasta\" d'Abruzzo, alle porte di gole spettacolari scavate nella Majella, meta di trekking ed escursioni.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Gole_di_Fara_San_Martino.jpg" },
+  { nome:"Guardiagrele", giorno:11, categoria:"Borgo & artigianato",
+    lat:42.1936, lng:14.2814,
+    descrizione:"Chiamata la \"città della pietra e del ferro battuto\", nota per l'artigianato orafo e per la chiesa gotica di Santa Maria Maggiore.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Stemmi_Santa_Maria_Maggiore,_Guardiagrele.JPG" },
+
+  { nome:"Chieti", giorno:12, categoria:"Città & archeologia",
+    lat:42.3510, lng:14.1677,
+    descrizione:"Una delle città più antiche d'Abruzzo, con vista sul Gran Sasso; il suo Museo Archeologico Nazionale custodisce il celebre Guerriero di Capestrano.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Villamagna-Vista_su_Chieti_e_Gran_Sasso_innevato_-_panoramio.jpg" },
+  { nome:"Capestrano", giorno:12, categoria:"Borgo & archeologia",
+    lat:42.2606, lng:13.7867,
+    descrizione:"Il paese dove nel 1934 fu ritrovata la statua del Guerriero di Capestrano; domina il borgo il castello Piccolomini.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Capestrano-CastelloPiccolomini_01.JPG" },
+
+  { nome:"Anversa degli Abruzzi e Gole del Sagittario", giorno:15, categoria:"Borgo & gole",
+    lat:41.9578, lng:13.8497,
+    descrizione:"Borgo medievale affacciato sulle strette e spettacolari Gole del Sagittario, riserva naturale tra Scanno e Sulmona.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Anversa_from_Gole_del_Sagittario_canyon_2.jpg" },
+  { nome:"Celano", giorno:15, categoria:"Borgo & castello",
+    lat:42.0843, lng:13.5477,
+    descrizione:"Domina il paese l'imponente castello Piccolomini, uno dei più grandi e meglio conservati d'Abruzzo, oggi museo.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Celano_-_Castello_Piccolomini.jpg" },
+  { nome:"Cocullo", giorno:15, categoria:"Borgo & tradizioni",
+    lat:42.0658, lng:13.7972,
+    descrizione:"Piccolo borgo della Valle Peligna, celebre in tutta Italia per l'antica Festa dei Serpari il primo maggio.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Maria_delle_Grazie,_Cocullo.JPG" },
+  { nome:"Grotte di Stiffe", giorno:15, categoria:"Natura",
+    lat:42.2557, lng:13.5424,
+    descrizione:"Spettacolare complesso carsico con un fiume sotterraneo che scorre tra cascate e laghetti, visitabile con percorso guidato.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Grotte_di_Stiffe_2015_by-RaBoe_02.jpg" },
+
+  { nome:"Vasto", giorno:13, categoria:"Città & mare",
+    lat:42.1124, lng:14.7058,
+    descrizione:"Cittadina costiera che chiude a sud la Costa dei Trabocchi, con un centro storico panoramico affacciato sul golfo.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Maria_Maggiore_Vasto_facciata.jpg" },
+  { nome:"Punta Aderci", giorno:13, categoria:"Natura & mare",
+    lat:42.1799, lng:14.6877,
+    descrizione:"Riserva naturale costiera con dune, spiagge selvagge e vista sul golfo di Vasto fino al Gargano nelle giornate limpide.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Riserva_Punta_Aderci_Vasto.jpg" },
+
+  { nome:"Lago di Campotosto", giorno:14, categoria:"Natura",
+    lat:42.5308, lng:13.3833,
+    descrizione:"Il lago artificiale più grande d'Abruzzo, a pochi minuti da Fano a Corno: altopiani, panorami sul Gran Sasso e percorsi ad anello.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Riva_del_lago_di_Campotosto_al_tramonto_(1).jpg" },
+];
 
 const SEED_STOPS = [
   { nome:"Fano a Corno", giorno:0, isBase:true, categoria:"Base / alloggio",
@@ -716,11 +791,11 @@ function setCurrent(id){
 /* ---- timeline (selettore giorni) ---- */
 function renderTimeline(){
   const el = document.getElementById('timeline');
-  const days = [0,1,2,3,4,5,6,7,8,9];
+  const days = Object.keys(DAY_META).map(Number).sort((a,b) => a-b);
   el.innerHTML = days.map(d => {
     const meta = DAY_META[d];
     const active = activeDay === d ? 'active' : '';
-    const label = d === 0 ? 'Base' : meta.label.split('·')[0].trim();
+    const label = d === 0 ? 'Base' : (d >= 10 ? meta.label.split('·')[1].trim() : meta.label.split('·')[0].trim());
     return `<button class="day-chip ${active}" data-day="${d}">
       <span class="dot" style="background:${meta.color}"></span>${label}
     </button>`;
@@ -894,6 +969,29 @@ function openNewStopForm(lat, lng){
     foto:"https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=800&q=60"
   });
 }
+
+document.getElementById('addExtraBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('addExtraBtn');
+  const existingNames = new Set(allStops.map(s => s.nome.trim().toLowerCase()));
+  const toAdd = EXTRA_STOPS.filter(s => !existingNames.has(s.nome.trim().toLowerCase()));
+
+  if (toAdd.length === 0){
+    btn.textContent = '✓ Mete extra già presenti';
+    setTimeout(() => { btn.textContent = '✨ Aggiungi le 15 mete extra suggerite'; }, 2200);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = `Aggiungo ${toAdd.length} mete…`;
+  for (const stop of toAdd){
+    await createStop(stop);
+  }
+  btn.textContent = `✓ Aggiunte ${toAdd.length} mete extra`;
+  setTimeout(() => {
+    btn.textContent = '✨ Aggiungi le 15 mete extra suggerite';
+    btn.disabled = false;
+  }, 2500);
+});
 
 document.getElementById('addStopBtn').addEventListener('click', () => {
   placingMode = !placingMode;
