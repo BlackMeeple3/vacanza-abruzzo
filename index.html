@@ -219,6 +219,40 @@
     position:sticky; top:0; z-index:5;
   }
 
+  .map-legend{
+    position:absolute;
+    z-index:500;
+    top:12px; left:12px;
+    background:rgba(251,249,244,0.94);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:8px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    max-width:min(78vw, 260px);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(2px);
+  }
+  .legend-item{
+    display:flex; align-items:center; gap:7px;
+    border:none; background:transparent;
+    padding:4px 6px; border-radius:7px;
+    font-size:0.74rem; text-align:left; color:var(--ink);
+    line-height:1.2;
+  }
+  .legend-item:hover{ background:var(--stone); }
+  .legend-dot{
+    width:11px; height:11px; border-radius:50%; flex:none;
+    border:1.5px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.35);
+  }
+  .legend-dot-base{
+    background:var(--ginestra);
+    display:flex; align-items:center; justify-content:center;
+    font-size:8px; color:#3a2c0c; line-height:1;
+  }
+  .legend-base{ border-top:1px solid var(--line); margin-top:3px; padding-top:6px; font-weight:600; }
+
   .leaflet-popup-content-wrapper{
     border-radius:12px;
     font-family:'Work Sans',sans-serif;
@@ -386,7 +420,10 @@
 
 <div class="layout">
   <div>
-    <div id="map"></div>
+    <div style="position:relative;">
+      <div id="mapLegend" class="map-legend"></div>
+      <div id="map"></div>
+    </div>
   </div>
 
   <aside class="rail">
@@ -400,7 +437,7 @@
     </div>
 
     <button class="add-stop-btn" id="addStopBtn">＋ Aggiungi una tappa (clicca poi sulla mappa)</button>
-    <button class="add-stop-btn" id="addExtraBtn" style="margin-top:-4px;">✨ Aggiungi le 15 mete extra suggerite</button>
+    <button class="add-stop-btn" id="addExtraBtn" style="margin-top:-4px;">✨ Aggiungi le mete extra suggerite</button>
 
     <div id="cardsContainer"></div>
     <div class="empty-hint" id="emptyHint" style="display:none;">Nessuna tappa trovata.</div>
@@ -426,95 +463,125 @@ import {
    (basato sui luoghi indicati sul sito di Lorenzo Taccioli,
    descrizioni riscritte, coordinate GPS approssimative)
 ========================================================= */
-const DAY_META = {
-  0: { label:"Base", color:"#C99A2E" },
-  1: { label:"Giorno 1 · Civitella & Teramo", color:"#8B5E3C" },
-  2: { label:"Giorno 2 · Campo Imperatore", color:"#46586B" },
-  3: { label:"Giorno 3 · Borghi dell'Aquilano", color:"#6B7A3C" },
-  4: { label:"Giorno 4 · Fontecchio & L'Aquila", color:"#7A4B6B" },
-  5: { label:"Giorno 5 · Alba Fucens, Gole, Scanno", color:"#2F6F6B" },
-  6: { label:"Giorno 6 · Sulmona & Roccascalegna", color:"#B5502D" },
-  7: { label:"Giorno 7 · Lanciano & Trabocchi", color:"#1D6FA5" },
-  8: { label:"Giorno 8 · Ortona & Pescara", color:"#3F7D5C" },
-  9: { label:"Giorno 9 · Silvi Alta & Atri", color:"#C9862E" },
-  10: { label:"Extra · Parco Nazionale d'Abruzzo", color:"#3F7A44" },
-  11: { label:"Extra · Majella", color:"#6E4A2E" },
-  12: { label:"Extra · Chieti & Capestrano", color:"#8E4585" },
-  13: { label:"Extra · Costa Sud (Vasto)", color:"#1590A6" },
-  14: { label:"Extra · Vicino alla base", color:"#A6862E" },
-  15: { label:"Extra · Borghi minori Aquilano", color:"#4A6B8A" },
+const ZONE_META = {
+  1: { name:"Gran Sasso e Teramano", color:"#46586B" },
+  2: { name:"L'Aquila e Valle del Tirino", color:"#7A4B6B" },
+  3: { name:"Parco Nazionale d'Abruzzo", color:"#3F7A44" },
+  4: { name:"Valle del Sagittario e Scanno", color:"#2F6F6B" },
+  5: { name:"Valle Peligna e Majella", color:"#B5502D" },
+  6: { name:"Costa dei Trabocchi e Chietino", color:"#1590A6" },
 };
 
 const EXTRA_STOPS = [
-  { nome:"Pescasseroli", giorno:10, categoria:"Borgo & parco",
+  { nome:"Pescasseroli", giorno:3, categoria:"Borgo & parco",
     lat:41.8000, lng:13.7830,
     descrizione:"Il centro più importante del Parco Nazionale d'Abruzzo, Lazio e Molise: musei naturalistici, aree faunistiche e sentieri per avvistare l'orso marsicano.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Pescasseroli.jpg" },
-  { nome:"Civitella Alfedena e Lago di Barrea", giorno:10, categoria:"Borgo & lago",
+  { nome:"Civitella Alfedena e Lago di Barrea", giorno:3, categoria:"Borgo & lago",
     lat:41.7658, lng:13.9256,
     descrizione:"Uno dei borghi più piccoli e integri del parco, con vista sul lago di Barrea; qui ha sede il Museo del Lupo Appenninico.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Civitella_Alfedena.jpg" },
-  { nome:"Opi", giorno:10, categoria:"Borgo panoramico",
+  { nome:"Opi", giorno:3, categoria:"Borgo panoramico",
     lat:41.7936, lng:13.8283,
     descrizione:"Borgo arroccato all'ingresso del parco, con vista sulla Val Fondillo; il museo del camoscio racconta la fauna del territorio.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Opi_(AQ).jpg" },
 
-  { nome:"Caramanico Terme", giorno:11, categoria:"Borgo termale",
+  { nome:"Caramanico Terme", giorno:5, categoria:"Borgo termale",
     lat:42.1372, lng:14.0044,
     descrizione:"Borgo termale alla confluenza di due fiumi, porta d'accesso al Parco della Majella, con un centro storico arroccato su un promontorio.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Caramanico_Terme_-_panoramio_(cropped).jpg" },
-  { nome:"Fara San Martino", giorno:11, categoria:"Natura & borgo",
+  { nome:"Fara San Martino", giorno:5, categoria:"Natura & borgo",
     lat:42.0847, lng:14.2019,
     descrizione:"La \"capitale della pasta\" d'Abruzzo, alle porte di gole spettacolari scavate nella Majella, meta di trekking ed escursioni.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Gole_di_Fara_San_Martino.jpg" },
-  { nome:"Guardiagrele", giorno:11, categoria:"Borgo & artigianato",
+  { nome:"Guardiagrele", giorno:5, categoria:"Borgo & artigianato",
     lat:42.1936, lng:14.2814,
     descrizione:"Chiamata la \"città della pietra e del ferro battuto\", nota per l'artigianato orafo e per la chiesa gotica di Santa Maria Maggiore.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Stemmi_Santa_Maria_Maggiore,_Guardiagrele.JPG" },
 
-  { nome:"Chieti", giorno:12, categoria:"Città & archeologia",
+  { nome:"Chieti", giorno:6, categoria:"Città & archeologia",
     lat:42.3510, lng:14.1677,
     descrizione:"Una delle città più antiche d'Abruzzo, con vista sul Gran Sasso; il suo Museo Archeologico Nazionale custodisce il celebre Guerriero di Capestrano.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Villamagna-Vista_su_Chieti_e_Gran_Sasso_innevato_-_panoramio.jpg" },
-  { nome:"Capestrano", giorno:12, categoria:"Borgo & archeologia",
+  { nome:"Capestrano", giorno:2, categoria:"Borgo & archeologia",
     lat:42.2606, lng:13.7867,
     descrizione:"Il paese dove nel 1934 fu ritrovata la statua del Guerriero di Capestrano; domina il borgo il castello Piccolomini.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Capestrano-CastelloPiccolomini_01.JPG" },
 
-  { nome:"Anversa degli Abruzzi e Gole del Sagittario", giorno:15, categoria:"Borgo & gole",
+  { nome:"Anversa degli Abruzzi e Gole del Sagittario", giorno:4, categoria:"Borgo & gole",
     lat:41.9578, lng:13.8497,
     descrizione:"Borgo medievale affacciato sulle strette e spettacolari Gole del Sagittario, riserva naturale tra Scanno e Sulmona.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Anversa_from_Gole_del_Sagittario_canyon_2.jpg" },
-  { nome:"Celano", giorno:15, categoria:"Borgo & castello",
+  { nome:"Celano", giorno:3, categoria:"Borgo & castello",
     lat:42.0843, lng:13.5477,
     descrizione:"Domina il paese l'imponente castello Piccolomini, uno dei più grandi e meglio conservati d'Abruzzo, oggi museo.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Celano_-_Castello_Piccolomini.jpg" },
-  { nome:"Cocullo", giorno:15, categoria:"Borgo & tradizioni",
+  { nome:"Cocullo", giorno:4, categoria:"Borgo & tradizioni",
     lat:42.0658, lng:13.7972,
     descrizione:"Piccolo borgo della Valle Peligna, celebre in tutta Italia per l'antica Festa dei Serpari il primo maggio.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Maria_delle_Grazie,_Cocullo.JPG" },
-  { nome:"Grotte di Stiffe", giorno:15, categoria:"Natura",
+  { nome:"Grotte di Stiffe", giorno:2, categoria:"Natura",
     lat:42.2557, lng:13.5424,
     descrizione:"Spettacolare complesso carsico con un fiume sotterraneo che scorre tra cascate e laghetti, visitabile con percorso guidato.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Grotte_di_Stiffe_2015_by-RaBoe_02.jpg" },
 
-  { nome:"Vasto", giorno:13, categoria:"Città & mare",
+  { nome:"Vasto", giorno:6, categoria:"Città & mare",
     lat:42.1124, lng:14.7058,
     descrizione:"Cittadina costiera che chiude a sud la Costa dei Trabocchi, con un centro storico panoramico affacciato sul golfo.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Maria_Maggiore_Vasto_facciata.jpg" },
-  { nome:"Punta Aderci", giorno:13, categoria:"Natura & mare",
+  { nome:"Punta Aderci", giorno:6, categoria:"Natura & mare",
     lat:42.1799, lng:14.6877,
     descrizione:"Riserva naturale costiera con dune, spiagge selvagge e vista sul golfo di Vasto fino al Gargano nelle giornate limpide.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Riserva_Punta_Aderci_Vasto.jpg" },
 
-  { nome:"Lago di Campotosto", giorno:14, categoria:"Natura",
+  { nome:"Lago di Campotosto", giorno:1, categoria:"Natura",
     lat:42.5308, lng:13.3833,
     descrizione:"Il lago artificiale più grande d'Abruzzo, a pochi minuti da Fano a Corno: altopiani, panorami sul Gran Sasso e percorsi ad anello.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Riva_del_lago_di_Campotosto_al_tramonto_(1).jpg" },
+
+  { nome:"Valle del Tirino", giorno:2, categoria:"Natura & escursione",
+    lat:42.2300, lng:13.8250,
+    descrizione:"Il fiume più limpido d'Europa, alimentato da tre sorgenti carsiche ai piedi del Gran Sasso: si esplora in canoa o a piedi lungo gli argini, partendo da San Martino di Capestrano.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Ansa_del_Tirino_presso_Capodacqua,_Capestrano_(AQ)_-_panoramio.jpg" },
+
+  { nome:"Castrovalva", giorno:4, categoria:"Borgo panoramico",
+    lat:41.9829, lng:13.8134,
+    descrizione:"Minuscola frazione di Anversa degli Abruzzi arroccata su uno sperone di roccia a 820 metri, celebre per la litografia di Escher del 1930 che la ritrae dal tornante oggi chiamato Girone Escher.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Castro_Valva.JPG" },
+  { nome:"Villalago e Lago di San Domenico", giorno:4, categoria:"Borgo & lago",
+    lat:41.9419, lng:13.8289,
+    descrizione:"Borgo affacciato sul lago artificiale di San Domenico, nella valle del Sagittario; sulla riva opposta l'eremo omonimo custodisce la grotta dove la tradizione vuole abbia vissuto San Domenico di Sora.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Eremo_di_San_Domenico_e_lago.JPG" },
+  { nome:"Passo Godi", giorno:4, categoria:"Natura & montagna",
+    lat:41.8470, lng:13.9283,
+    descrizione:"Valico a 1630 metri tra Villalago e Scanno, punto di partenza per passeggiate tra faggete del Parco Nazionale d'Abruzzo con vista sulle vette circostanti.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Passo_Godi_2009_002_(RaBoe).jpg" },
+
+  { nome:"Barrea", giorno:3, categoria:"Borgo & lago",
+    lat:41.7580, lng:13.9930,
+    descrizione:"Borgo fortificato affacciato sul lago omonimo, nato dallo sbarramento del fiume Sangro nel dopoguerra, nel cuore del Parco Nazionale d'Abruzzo.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Arco_centro_storico_Barrea.jpg" },
+  { nome:"Camosciara", giorno:3, categoria:"Natura & trekking",
+    lat:41.7883, lng:13.8567,
+    descrizione:"Il nucleo naturalistico più antico del Parco Nazionale d'Abruzzo: un anfiteatro di rocce dall'aspetto dolomitico, cascate e sentieri dove è facile incontrare il camoscio d'Abruzzo.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Panorama_della_Riserva_Naturale_La_Camosciara.jpg" },
+  { nome:"Val Fondillo", giorno:3, categoria:"Natura & trekking",
+    lat:41.7542, lng:13.8858,
+    descrizione:"Valle boscosa nel territorio di Opi, con faggete secolari patrimonio UNESCO; i suoi sentieri pianeggianti sono tra i più amati per l'avvistamento della fauna del parco.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Opi-Bosco_di_Val_Fondillo.JPG" },
+
+  { nome:"Pennapiedimonte", giorno:5, categoria:"Borgo di pietra",
+    lat:42.1656, lng:14.2372,
+    descrizione:"Borgo scavato nella pietra della Majella, soprannominato \"balcone d'Abruzzo\" per il panorama che spazia dai monti fino al mare dallo sperone del Cimirocco.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/San_Silvestro_e_Rocco,_Pennapiedimonte.JPG" },
+  { nome:"Pennadomo", giorno:5, categoria:"Borgo & gole",
+    lat:42.0403, lng:14.3097,
+    descrizione:"Piccolo borgo della Val di Sangro affacciato su strette gole scavate nella roccia, a pochi minuti da Roccascalegna.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Gole_di_Pennadomo_(4).jpg" },
 ];
 
 const SEED_STOPS = [
-  { nome:"Fano a Corno", giorno:0, isBase:true, categoria:"Base / alloggio",
+  { nome:"Fano a Corno", giorno:1, isBase:true, categoria:"Base / alloggio",
     lat:42.4899, lng:13.6169,
     descrizione:"La nostra base per tutto il viaggio: frazione di Isola del Gran Sasso d'Italia, ai piedi del Corno Grande, punto di partenza comodo per Campo Imperatore e i borghi dell'Aquilano.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Corno-Grande-del-Gran-Sasso-che-spunta-dal-vado-di-Corno.jpg" },
@@ -528,90 +595,90 @@ const SEED_STOPS = [
     descrizione:"Capoluogo dal centro storico stratificato nei secoli, con resti di teatro e anfiteatro romano a pochi passi dal duomo.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Patrimonio-artistico-e-storico-di-Teramo.jpg" },
 
-  { nome:"Campo Imperatore", giorno:2, categoria:"Montagna",
+  { nome:"Campo Imperatore", giorno:1, categoria:"Montagna",
     lat:42.4600, lng:13.5600,
     descrizione:"Il grande altopiano soprannominato \"piccolo Tibet\", punto di partenza per il trekking verso il Corno Grande del Gran Sasso.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Le-colline-di-Campo-Imperatore.jpg" },
-  { nome:"Rocca Calascio", giorno:2, categoria:"Castello",
+  { nome:"Rocca Calascio", giorno:1, categoria:"Castello",
     lat:42.4136, lng:13.6392,
     descrizione:"Uno dei simboli dell'Abruzzo: i resti di uno dei castelli più alti d'Italia, location di numerosi film.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Rocca-Calascio-Simbolo-Abruzzo.jpg" },
 
-  { nome:"Castel del Monte (AQ)", giorno:3, categoria:"Borgo",
+  { nome:"Castel del Monte (AQ)", giorno:1, categoria:"Borgo",
     lat:42.4264, lng:13.6944,
     descrizione:"Borgo pastorale alle porte di Campo Imperatore, con il caratteristico Rione Ricetto dalle case in pietra addossate.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Borgo-storico-di-Castel-del-Monte-Dal-Rione-Ricetto-al-resto-del-centro.jpg" },
-  { nome:"Santo Stefano di Sessanio", giorno:3, categoria:"Borgo",
+  { nome:"Santo Stefano di Sessanio", giorno:1, categoria:"Borgo",
     lat:42.3838, lng:13.6236,
     descrizione:"Uno dei borghi più celebri d'Abruzzo, rinato come albergo diffuso, con la sua torre medicea a dominare le case in pietra.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Santo-Stefano-di-Sessanio-Borghi-piu-belli-di-Italia.jpg" },
-  { nome:"Fossa", giorno:3, categoria:"Arte & archeologia",
+  { nome:"Fossa", giorno:1, categoria:"Arte & archeologia",
     lat:42.3308, lng:13.4903,
     descrizione:"La chiesa di Santa Maria ad Cryptas custodisce affreschi duecenteschi tra i meglio conservati d'Italia; nei dintorni una vasta necropoli antica.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/09/Intera-chiesetta-di-Santa-Maria-ad-Cryptas-interamente-affrescata.jpg" },
-  { nome:"Bominaco", giorno:3, categoria:"Arte & archeologia",
+  { nome:"Bominaco", giorno:1, categoria:"Arte & archeologia",
     lat:42.2947, lng:13.5308,
     descrizione:"Piccolo borgo noto per l'oratorio di San Pellegrino, chiamato la \"cappella Sistina d'Abruzzo\" per i suoi affreschi.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Affreschi-oratorio-di-San-Pellegrino-a-Bominaco.jpg" },
 
-  { nome:"Fontecchio", giorno:4, categoria:"Borgo",
+  { nome:"Fontecchio", giorno:1, categoria:"Borgo",
     lat:42.2664, lng:13.5636,
     descrizione:"Borgo medievale poco conosciuto, con una fontana monumentale trecentesca e vicoli in salita da scoprire con calma.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Fontecchio-Cosa-vedere-in-Abruzzo.jpg" },
-  { nome:"L'Aquila", giorno:4, categoria:"Città",
+  { nome:"L'Aquila", giorno:2, categoria:"Città",
     lat:42.3498, lng:13.3995,
     descrizione:"Città capoluogo in piena rinascita dopo il terremoto del 2009: basilica di Collemaggio, fontana delle 99 cannelle, forte Spagnolo.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Facciata-della-basilica-di-Collemaggio-con-Prato-davanti.jpg" },
 
-  { nome:"Alba Fucens", giorno:5, categoria:"Arte & archeologia",
+  { nome:"Alba Fucens", giorno:3, categoria:"Arte & archeologia",
     lat:42.0972, lng:13.4139,
     descrizione:"Il sito archeologico più importante d'Abruzzo: i resti di un antico avamposto romano con anfiteatro ben conservato.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Alba-Fucens-e-il-suo-anfiteatro.jpg" },
-  { nome:"Gole di Aielli-Celano", giorno:5, categoria:"Natura & trekking",
+  { nome:"Gole di Aielli-Celano", giorno:3, categoria:"Natura & trekking",
     lat:42.0644, lng:13.5750,
     descrizione:"Trekking spettacolare tra pareti rocciose alte fino a 200 metri, distanti pochi metri l'una dall'altra.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Le-pareti-verticali-delle-Gole-di-Aielli-Celano-distanti-pochi-metri-tra-loro.jpg" },
-  { nome:"Scanno", giorno:5, categoria:"Borgo & lago",
+  { nome:"Scanno", giorno:4, categoria:"Borgo & lago",
     lat:41.9106, lng:13.9106,
     descrizione:"Borgo arroccato reso celebre dal vicino lago a forma di cuore, raggiungibile con una breve passeggiata panoramica.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Lago-a-forma-di-cuore-di-Scanno.jpg" },
 
-  { nome:"Sulmona", giorno:6, categoria:"Città",
+  { nome:"Sulmona", giorno:5, categoria:"Città",
     lat:42.0500, lng:13.9333,
     descrizione:"Città dei confetti ai piedi del monte Morrone, con l'acquedotto svevo e un centro storico vivo di sera.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Chiesa-Palazzo-della-Santissima-Annunziata-di-Sulmona-di-notte.jpg" },
-  { nome:"Eremo di San Bartolomeo in Legio", giorno:6, categoria:"Eremo",
+  { nome:"Eremo di San Bartolomeo in Legio", giorno:5, categoria:"Eremo",
     lat:42.1667, lng:14.0264,
     descrizione:"Eremo trecentesco scavato in uno sperone di roccia, raggiungibile solo a piedi tra le montagne di Roccamorice.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/10/Eremo-di-San-Bartolomeo-in-Legio-scavato-in-uno-sperone-di-roccia-di-50-metri.jpg" },
-  { nome:"Roccascalegna", giorno:6, categoria:"Castello",
+  { nome:"Roccascalegna", giorno:5, categoria:"Castello",
     lat:42.0672, lng:14.3719,
     descrizione:"Borgo medievale sorpreso da un castello costruito letteralmente a strapiombo su uno sperone di roccia.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Castello-di-Roccascalegna-costruito-su-di-uno-sperone-di-roccia-Cosa-vedere-in-Abruzzo.jpg" },
 
-  { nome:"Lanciano", giorno:7, categoria:"Città",
+  { nome:"Lanciano", giorno:6, categoria:"Città",
     lat:42.2306, lng:14.3892,
     descrizione:"Città nota per un celebre miracolo eucaristico, con un centro storico articolato attorno al ponte di Diocleziano.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Centro-storico-di-Lanciano-visto-dal-ponte-di-Diocleziano.jpg" },
-  { nome:"Costa dei Trabocchi", giorno:7, categoria:"Mare",
+  { nome:"Costa dei Trabocchi", giorno:6, categoria:"Mare",
     lat:42.2833, lng:14.4667,
     descrizione:"Il tratto di costa tra Ortona e Vasto punteggiato dai trabocchi, antiche macchine da pesca in legno protese sul mare.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Trabocco-Lupone-a-San-Vito-Chietino-Costa-dei-Trabocchi.jpg" },
 
-  { nome:"Ortona", giorno:8, categoria:"Città & mare",
+  { nome:"Ortona", giorno:6, categoria:"Città & mare",
     lat:42.3559, lng:14.4028,
     descrizione:"Cittadina segnata dalla battaglia del 1943, con il castello Aragonese affacciato sull'Adriatico.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Interni-del-Castello-Aragonese-di-Ortona.jpg" },
-  { nome:"Pescara", giorno:8, categoria:"Città",
+  { nome:"Pescara", giorno:6, categoria:"Città",
     lat:42.4618, lng:14.2161,
     descrizione:"La città più recente d'Abruzzo, con la pineta dannunziana, il ponte del Mare e la casa natale di D'Annunzio.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Basilica-della-Madonna-dei-Sette-Dolori-Pescara.jpg" },
 
-  { nome:"Silvi Alta", giorno:9, categoria:"Belvedere",
+  { nome:"Silvi Alta", giorno:1, categoria:"Belvedere",
     lat:42.5833, lng:14.1000,
     descrizione:"Piccolo borgo collinare con un belvedere che regala una vista lunghissima sulla costa adriatica.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Belvedere-di-Silvi-Alta-Perla-dell-Adriatico.jpg" },
-  { nome:"Atri", giorno:9, categoria:"Natura & storia",
+  { nome:"Atri", giorno:1, categoria:"Natura & storia",
     lat:42.5786, lng:13.9942,
     descrizione:"Città celebre per i calanchi che incidono le colline circostanti, con un bel centro storico e piante di liquirizia lungo i sentieri.",
     foto:"https://www.lorenzotaccioli.it/wp-content/uploads/2021/11/Percorsi-escursionistici-tra-i-calanchi-di-Atri.jpg" },
@@ -727,20 +794,52 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 const markersById = new Map();
 let placingMode = false;
 
-function dayColor(giorno){ return (DAY_META[giorno] || DAY_META[0]).color; }
+function zoneColor(zona){ return (ZONE_META[zona] || {color:'#777'}).color; }
 
-function pinIcon(color, isBase, isCurrent){
-  const size = isBase ? 34 : 26;
-  const ring = isCurrent ? `box-shadow:0 0 0 4px rgba(181,80,45,0.35);` : '';
-  const shape = isBase
-    ? `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="${color}" stroke="#fff" stroke-width="1.2" d="M12 1 1 9v13h7v-7h8v7h7V9L12 1Z"/></svg>`
-    : `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="${color}" stroke="#fff" stroke-width="1.2" d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8Z"/><circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>`;
+function circleIcon(color, isBase, isCurrent){
+  const size = isBase ? 28 : 16;
+  const border = isBase ? 3 : 2;
+  const ring = isCurrent ? `box-shadow:0 0 0 4px rgba(181,80,45,0.45);` : '';
+  const starOverlay = isBase
+    ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${size*0.55}px;line-height:1;">★</span>`
+    : '';
   return L.divIcon({
     className:'badge-pin',
-    html:`<div style="filter:drop-shadow(0 3px 4px rgba(0,0,0,.35)); ${ring} border-radius:50%;">${shape}</div>`,
+    html:`<div style="
+        width:${size}px;height:${size}px;border-radius:50%;
+        background:${color};
+        border:${border}px solid #fff;
+        box-shadow:0 2px 6px rgba(0,0,0,.45); ${ring}
+        position:relative;
+      ">${starOverlay}</div>`,
     iconSize:[size,size],
-    iconAnchor:[size/2, size],
-    popupAnchor:[0, -size]
+    iconAnchor:[size/2, size/2],
+    popupAnchor:[0, -size/2]
+  });
+}
+
+function renderLegend(){
+  const el = document.getElementById('mapLegend');
+  el.innerHTML = Object.entries(ZONE_META).map(([id, z]) => `
+    <button class="legend-item" data-zone="${id}">
+      <span class="legend-dot" style="background:${z.color}"></span>${z.name}
+    </button>
+  `).join('') + `
+    <button class="legend-item legend-base" data-zone="base">
+      <span class="legend-dot legend-dot-base">★</span>Base: Fano a Corno
+    </button>
+  `;
+  el.querySelectorAll('.legend-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const z = btn.dataset.zone;
+      if (z === 'base'){
+        const base = allStops.find(s => s.isBase);
+        if (base){ map.flyTo([base.lat, base.lng], 11, {duration:0.6}); const m = markersById.get(base.id); if (m) m.openPopup(); }
+        return;
+      }
+      activeZone = Number(z) === activeZone ? 'all' : Number(z);
+      render();
+    });
   });
 }
 
@@ -749,11 +848,11 @@ function renderMarkers(stops, currentId){
   markersById.clear();
   stops.forEach(s => {
     const marker = L.marker([s.lat, s.lng], {
-      icon: pinIcon(dayColor(s.giorno), s.isBase, s.id === currentId)
+      icon: circleIcon(zoneColor(s.giorno), s.isBase, s.id === currentId)
     }).addTo(map);
     marker.bindPopup(`
       <img class="popup-photo" src="${s.foto}" alt="${escapeHtml(s.nome)}">
-      <div class="popup-day" style="color:${dayColor(s.giorno)};font-weight:600;">${DAY_META[s.giorno]?.label || ''}</div>
+      <div class="popup-day" style="color:${zoneColor(s.giorno)};font-weight:600;">${ZONE_META[s.giorno]?.name || ''}</div>
       <p class="popup-title">${escapeHtml(s.nome)}</p>
       <div style="font-size:0.8rem;color:#5A5347;">${escapeHtml(s.categoria||'')}</div>
     `);
@@ -774,7 +873,7 @@ map.on('click', (e) => {
    STATO UI
 ========================================================= */
 let allStops = [];
-let activeDay = 'all';
+let activeZone = 'all';
 let searchTerm = '';
 let currentId = null;   // "tappa attuale" evidenziata (non e' la base)
 let editingId = null;
@@ -788,23 +887,22 @@ function setCurrent(id){
   render();
 }
 
-/* ---- timeline (selettore giorni) ---- */
+/* ---- selettore macro-zone ---- */
 function renderTimeline(){
   const el = document.getElementById('timeline');
-  const days = Object.keys(DAY_META).map(Number).sort((a,b) => a-b);
-  el.innerHTML = days.map(d => {
-    const meta = DAY_META[d];
-    const active = activeDay === d ? 'active' : '';
-    const label = d === 0 ? 'Base' : (d >= 10 ? meta.label.split('·')[1].trim() : meta.label.split('·')[0].trim());
-    return `<button class="day-chip ${active}" data-day="${d}">
-      <span class="dot" style="background:${meta.color}"></span>${label}
+  const zones = Object.keys(ZONE_META).map(Number).sort((a,b) => a-b);
+  el.innerHTML = zones.map(z => {
+    const meta = ZONE_META[z];
+    const active = activeZone === z ? 'active' : '';
+    return `<button class="day-chip ${active}" data-zone="${z}">
+      <span class="dot" style="background:${meta.color}"></span>${meta.name}
     </button>`;
-  }).join('') + `<button class="day-chip ${activeDay==='all'?'active':''}" data-day="all"><span class="dot" style="background:#999"></span>Tutti i giorni</button>`;
+  }).join('') + `<button class="day-chip ${activeZone==='all'?'active':''}" data-zone="all"><span class="dot" style="background:#999"></span>Tutte le zone</button>`;
 
   el.querySelectorAll('.day-chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      const d = btn.dataset.day;
-      activeDay = d === 'all' ? 'all' : Number(d);
+      const z = btn.dataset.zone;
+      activeZone = z === 'all' ? 'all' : Number(z);
       render();
     });
   });
@@ -824,7 +922,7 @@ function renderBaseBadge(stops){
 /* ---- lista tappe ---- */
 function filteredStops(){
   return allStops
-    .filter(s => activeDay === 'all' ? true : s.giorno === activeDay)
+    .filter(s => activeZone === 'all' ? true : s.giorno === activeZone)
     .filter(s => {
       if (!searchTerm) return true;
       const t = searchTerm.toLowerCase();
@@ -834,7 +932,7 @@ function filteredStops(){
 }
 
 function cardTemplate(s){
-  const meta = DAY_META[s.giorno] || DAY_META[0];
+  const meta = ZONE_META[s.giorno] || {color:'#777', name:''};
   const isEditing = editingId === s.id;
   const classes = ['stop-card'];
   if (s.isBase) classes.push('is-base');
@@ -849,9 +947,9 @@ function cardTemplate(s){
         </div>
         <div class="edit-row">
           <div>
-            <label>Giorno</label>
+            <label>Macro-zona</label>
             <select name="giorno">
-              ${Object.entries(DAY_META).map(([k,v]) => `<option value="${k}" ${Number(k)===s.giorno?'selected':''}>${k==='0'?'Base':v.label}</option>`).join('')}
+              ${Object.entries(ZONE_META).map(([k,v]) => `<option value="${k}" ${Number(k)===s.giorno?'selected':''}>${v.name}</option>`).join('')}
             </select>
           </div>
           <div>
@@ -888,7 +986,7 @@ function cardTemplate(s){
   return `<div class="${classes.join(' ')}" data-id="${s.id}">
     <div class="stop-photo-wrap">
       <img class="stop-photo" src="${escapeHtml(s.foto)}" alt="${escapeHtml(s.nome)}" loading="lazy">
-      <span class="stop-tag" style="background:${meta.color}">${s.isBase ? '★ Base' : (s.giorno===0?'Base':'Giorno '+s.giorno)}</span>
+      <span class="stop-tag" style="background:${meta.color}">${s.isBase ? '★ Base' : meta.name}</span>
     </div>
     <div class="stop-body">
       <div class="day-label"><span class="dot" style="background:${meta.color}"></span>${s.categoria || ''}</div>
@@ -909,7 +1007,7 @@ function renderCards(){
   document.getElementById('cardsContainer').innerHTML = list.map(cardTemplate).join('');
   document.getElementById('emptyHint').style.display = list.length ? 'none' : 'block';
   document.getElementById('railCount').textContent = `${list.length} tapp${list.length===1?'a':'e'}`;
-  document.getElementById('railTitle').textContent = activeDay === 'all' ? 'Tutte le tappe' : (DAY_META[activeDay]?.label || 'Tappe');
+  document.getElementById('railTitle').textContent = activeZone === 'all' ? 'Tutte le tappe' : (ZONE_META[activeZone]?.name || 'Tappe');
 
   document.querySelectorAll('.stop-card').forEach(card => {
     const id = card.dataset.id;
@@ -959,10 +1057,10 @@ function renderCards(){
 
 /* ---- aggiunta nuova tappa via click sulla mappa ---- */
 function openNewStopForm(lat, lng){
-  const day = activeDay === 'all' ? 1 : activeDay;
+  const zona = activeZone === 'all' ? 1 : activeZone;
   createStop({
     nome:"Nuova tappa",
-    giorno: day === 0 ? 1 : day,
+    giorno: zona,
     categoria:"Da definire",
     descrizione:"Aggiungi qui una descrizione.",
     lat, lng,
@@ -977,7 +1075,7 @@ document.getElementById('addExtraBtn').addEventListener('click', async () => {
 
   if (toAdd.length === 0){
     btn.textContent = '✓ Mete extra già presenti';
-    setTimeout(() => { btn.textContent = '✨ Aggiungi le 15 mete extra suggerite'; }, 2200);
+    setTimeout(() => { btn.textContent = '✨ Aggiungi le mete extra suggerite'; }, 2200);
     return;
   }
 
@@ -988,7 +1086,7 @@ document.getElementById('addExtraBtn').addEventListener('click', async () => {
   }
   btn.textContent = `✓ Aggiunte ${toAdd.length} mete extra`;
   setTimeout(() => {
-    btn.textContent = '✨ Aggiungi le 15 mete extra suggerite';
+    btn.textContent = '✨ Aggiungi le mete extra suggerite';
     btn.disabled = false;
   }, 2500);
 });
@@ -1008,8 +1106,30 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 /* =========================================================
    RENDER PRINCIPALE
 ========================================================= */
+/* Migrazione silenziosa: se il sito era gia' online con lo schema
+   precedente (organizzato per giorno), la prima volta che carica
+   riallinea il campo zona di ogni tappa nota al valore corretto,
+   confrontandola per nome con i dati canonici qui sopra. Le tappe
+   aggiunte manualmente dall'utente (non presenti nell'elenco) non
+   vengono toccate. */
+const CANONICAL_ZONE_BY_NAME = new Map(
+  [...SEED_STOPS, ...EXTRA_STOPS].map(s => [s.nome.trim().toLowerCase(), s.giorno])
+);
+let zonesNormalized = false;
+async function normalizeZonesOnce(stops){
+  if (zonesNormalized) return;
+  zonesNormalized = true;
+  for (const s of stops){
+    const canonical = CANONICAL_ZONE_BY_NAME.get(s.nome.trim().toLowerCase());
+    if (canonical !== undefined && s.giorno !== canonical){
+      await saveStop(s.id, { giorno: canonical });
+    }
+  }
+}
+
 function render(){
   renderTimeline();
+  renderLegend();
   renderBaseBadge(allStops);
   renderMarkers(allStops, currentId);
   renderCards();
@@ -1020,6 +1140,7 @@ function render(){
   subscribeStops((stops) => {
     allStops = stops;
     render();
+    normalizeZonesOnce(stops);
   });
 })();
 </script>
