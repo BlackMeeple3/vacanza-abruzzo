@@ -235,6 +235,112 @@
     position:sticky; top:0; z-index:5;
   }
 
+  /* ---------- view toggle ---------- */
+  .view-toggle{
+    display:flex; gap:8px;
+    padding:14px clamp(16px,4vw,48px) 0;
+    background:var(--paper);
+  }
+  .view-btn{
+    border:1px solid var(--line);
+    background:var(--stone);
+    color:var(--ink-soft);
+    padding:8px 16px;
+    border-radius:10px 10px 0 0;
+    font-size:0.85rem;
+    font-weight:600;
+    border-bottom:none;
+  }
+  .view-btn.active{
+    background:var(--paper);
+    color:var(--ink);
+    box-shadow:0 -2px 0 var(--cotto) inset;
+  }
+
+  /* ---------- itinerary board ---------- */
+  .itinerary-layout{
+    padding:16px clamp(16px,4vw,48px) 40px;
+  }
+  .itinerary-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .itinerary-hint{
+    font-size:0.82rem;
+    color:var(--ink-soft);
+    max-width:56ch;
+    margin:0;
+  }
+  .itinerary-board{
+    display:flex;
+    gap:14px;
+    overflow-x:auto;
+    padding-bottom:12px;
+  }
+  .itin-column{
+    flex:none;
+    width:230px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px;
+    min-height:160px;
+    transition:background .12s ease, border-color .12s ease;
+  }
+  .itin-column.drag-over{
+    background:#fff2ec;
+    border-color:var(--cotto);
+  }
+  .itin-column.pool{
+    background:var(--stone-deep);
+  }
+  .itin-col-head{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:0.95rem;
+    margin-bottom:2px;
+  }
+  .itin-col-sub{
+    font-size:0.7rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    margin-bottom:10px;
+  }
+  .itin-card{
+    background:var(--stone);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:7px;
+    margin-bottom:8px;
+    cursor:grab;
+  }
+  .itin-card:active{ cursor:grabbing; }
+  .itin-card img{
+    width:100%; height:64px; object-fit:cover; border-radius:7px; margin-bottom:5px; display:block;
+  }
+  .itin-card .itin-name{
+    font-size:0.82rem; font-weight:600; margin-bottom:3px;
+    display:flex; align-items:center; gap:5px;
+  }
+  .itin-card .itin-name .dot{ width:7px;height:7px;border-radius:50%;flex:none; }
+  .itin-card select{
+    width:100%;
+    font-size:0.72rem;
+    padding:3px 5px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+  }
+  @media (max-width:900px){
+    .itinerary-board{ flex-wrap:nowrap; }
+  }
+
   .map-legend{
     position:absolute;
     z-index:500;
@@ -432,12 +538,17 @@
   </div>
 </header>
 
-<div class="timeline-wrap">
+<div class="view-toggle">
+  <button class="view-btn active" id="viewMapBtn">🗺️ Mappa e zone</button>
+  <button class="view-btn" id="viewItineraryBtn">📅 Itinerario 8–15 agosto</button>
+</div>
+
+<div class="timeline-wrap" id="timelineWrap">
   <span class="timeline-label">Filtra per zona:</span>
   <div class="timeline" id="timeline"></div>
 </div>
 
-<div class="layout">
+<div class="layout" id="mapLayout">
   <div>
     <div style="position:relative;">
       <div id="mapLegend" class="map-legend"></div>
@@ -462,6 +573,14 @@
     <div class="empty-hint" id="emptyHint" style="display:none;">Nessuna tappa trovata.</div>
   </aside>
 </div>
+
+<section id="itineraryLayout" class="itinerary-layout" style="display:none;">
+  <div class="itinerary-toolbar">
+    <p class="itinerary-hint">Trascina una tappa da una colonna all'altra per spostarla di giorno (su desktop), oppure usa il menu "sposta al" su ogni scheda (comodo anche da telefono).</p>
+    <button class="add-stop-btn" id="applyItineraryBtn" style="margin:0; max-width:340px;">✨ Applica itinerario suggerito</button>
+  </div>
+  <div class="itinerary-board" id="itineraryBoard"></div>
+</section>
 
 <footer class="credit">
   Luoghi e alcune fotografie selezionate a partire dall'itinerario di
@@ -488,6 +607,60 @@ const ZONE_META = {
   3: { name:"Valle del Sagittario e Scanno", color:"#2F6F6B" },
   4: { name:"Valle Peligna e Majella", color:"#B5502D" },
   5: { name:"Costa dei Trabocchi e Chietino", color:"#1590A6" },
+};
+
+/* =========================================================
+   ITINERARIO 8-15 AGOSTO — vista drag-and-drop
+========================================================= */
+const ITINERARY_START = "2026-08-08";
+const ITINERARY_LENGTH = 8; // 8, 9, 10, 11, 12, 13, 14, 15 agosto
+
+function itineraryDates(){
+  const dates = [];
+  const start = new Date(ITINERARY_START + "T00:00:00");
+  for (let i=0;i<ITINERARY_LENGTH;i++){
+    const d = new Date(start);
+    d.setDate(d.getDate()+i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  return dates;
+}
+
+function formatItineraryDate(iso){
+  const d = new Date(iso + "T00:00:00");
+  const weekday = d.toLocaleDateString('it-IT', { weekday:'long' });
+  const day = d.getDate();
+  const month = d.toLocaleDateString('it-IT', { month:'long' });
+  return { weekday: weekday.charAt(0).toUpperCase()+weekday.slice(1), day, month };
+}
+
+/* Itinerario suggerito: forte focus sul Gran Sasso (3 giorni su 8,
+   incluso un giorno intero per la scalata del Corno Grande), poi un
+   giorno per ciascuna delle altre macro-zone. Applicato solo alle
+   tappe che non hanno gia' una data assegnata, quindi non sovrascrive
+   modifiche fatte a mano trascinando le schede. */
+const SUGGESTED_ITINERARY = {
+  "Fano a Corno": "2026-08-08",
+  "Lago di Campotosto": "2026-08-08",
+  "Campo Imperatore": "2026-08-09",
+  "Rocca Calascio": "2026-08-09",
+  "Santo Stefano di Sessanio": "2026-08-09",
+  "Castel del Monte (AQ)": "2026-08-09",
+  "Scalata del Corno Grande": "2026-08-10",
+  "Civitella del Tronto": "2026-08-11",
+  "Teramo": "2026-08-11",
+  "L'Aquila": "2026-08-12",
+  "Fontecchio": "2026-08-12",
+  "Bominaco": "2026-08-12",
+  "Fossa": "2026-08-12",
+  "Scanno": "2026-08-13",
+  "Anversa degli Abruzzi e Gole del Sagittario": "2026-08-13",
+  "Castrovalva": "2026-08-13",
+  "Sulmona": "2026-08-14",
+  "Eremo di San Bartolomeo in Legio": "2026-08-14",
+  "Caramanico Terme": "2026-08-14",
+  "Costa dei Trabocchi": "2026-08-15",
+  "Vasto": "2026-08-15",
 };
 
 const EXTRA_STOPS = [
@@ -601,6 +774,11 @@ const EXTRA_STOPS = [
     lat:41.8080, lng:13.9350,
     descrizione:"Piccola area faunistica a conduzione familiare lungo la strada tra Villetta Barrea e Passo Godi, a 1600 metri: si cammina tra un branco di daini in semi-libertà, arrivando ad accarezzarli e a dar loro da mangiare con una breve visita guidata.",
     foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Centro_Visita_Daini_(Villetta_Barrea)01.jpg" },
+
+  { nome:"Scalata del Corno Grande", giorno:1, categoria:"Trekking impegnativo",
+    lat:42.4719, lng:13.5664,
+    descrizione:"La via normale alla vetta occidentale del Corno Grande (2912 m), il punto più alto degli Appennini: si parte da Campo Imperatore (funivia da Fonte Cerreto), si passa dal Rifugio Duca degli Abruzzi e dalla Sella di Monte Aquila, per circa 3-4 ore di salita su terreno sassoso e ripido negli ultimi tratti. Richiede scarponi da trekking, buona forma fisica e partenza mattutina.",
+    foto:"https://commons.wikimedia.org/wiki/Special:FilePath/Rifugio_duca_degli_Abruzzi_Gran_sasso.jpg" },
 ];
 
 const SEED_STOPS = [
@@ -1150,12 +1328,119 @@ async function normalizeZonesOnce(stops){
   }
 }
 
+/* ---- vista itinerario drag-and-drop ---- */
+function itineraryCardTemplate(s){
+  const meta = ZONE_META[s.giorno] || {color:'#777'};
+  const dates = itineraryDates();
+  return `<div class="itin-card" draggable="true" data-id="${s.id}">
+    <img src="${escapeHtml(s.foto)}" alt="${escapeHtml(s.nome)}" loading="lazy">
+    <div class="itin-name"><span class="dot" style="background:${meta.color}"></span>${escapeHtml(s.nome)}</div>
+    <select data-itin-select="${s.id}">
+      <option value="">Da assegnare</option>
+      ${dates.map(d => {
+        const f = formatItineraryDate(d);
+        return `<option value="${d}" ${s.data===d?'selected':''}>${f.weekday} ${f.day} ${f.month}</option>`;
+      }).join('')}
+    </select>
+  </div>`;
+}
+
+function renderItineraryBoard(){
+  const board = document.getElementById('itineraryBoard');
+  const dates = itineraryDates();
+  const unassigned = allStops.filter(s => !s.data);
+
+  let html = `<div class="itin-column pool" data-date="">
+    <div class="itin-col-head">Da assegnare</div>
+    <div class="itin-col-sub">${unassigned.length} tapp${unassigned.length===1?'a':'e'}</div>
+    ${unassigned.map(itineraryCardTemplate).join('')}
+  </div>`;
+
+  dates.forEach(d => {
+    const f = formatItineraryDate(d);
+    const stopsForDay = allStops.filter(s => s.data === d);
+    html += `<div class="itin-column" data-date="${d}">
+      <div class="itin-col-head">${f.weekday}</div>
+      <div class="itin-col-sub">${f.day} ${f.month}</div>
+      ${stopsForDay.map(itineraryCardTemplate).join('')}
+    </div>`;
+  });
+
+  board.innerHTML = html;
+
+  // drag & drop (desktop)
+  board.querySelectorAll('.itin-card').forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+  });
+  board.querySelectorAll('.itin-column').forEach(col => {
+    col.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      col.classList.add('drag-over');
+    });
+    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    col.addEventListener('drop', (e) => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const date = col.dataset.date || null;
+      if (id) saveStop(id, { data: date });
+    });
+  });
+
+  // select di riserva (touch-friendly)
+  board.querySelectorAll('[data-itin-select]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const id = sel.dataset.itinSelect;
+      saveStop(id, { data: sel.value || null });
+    });
+  });
+}
+
+document.getElementById('applyItineraryBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('applyItineraryBtn');
+  const byName = new Map(allStops.map(s => [s.nome.trim().toLowerCase(), s]));
+  let count = 0;
+  for (const [name, date] of Object.entries(SUGGESTED_ITINERARY)){
+    const stop = byName.get(name.trim().toLowerCase());
+    if (stop && !stop.data){
+      await saveStop(stop.id, { data: date });
+      count++;
+    }
+  }
+  btn.textContent = count > 0 ? `✓ Assegnate ${count} tappe` : '✓ Itinerario già applicato';
+  setTimeout(() => { btn.textContent = '✨ Applica itinerario suggerito'; }, 2500);
+});
+
+/* ---- toggle vista mappa / itinerario ---- */
+document.getElementById('viewMapBtn').addEventListener('click', () => {
+  document.getElementById('viewMapBtn').classList.add('active');
+  document.getElementById('viewItineraryBtn').classList.remove('active');
+  document.getElementById('timelineWrap').style.display = '';
+  document.getElementById('mapLayout').style.display = '';
+  document.getElementById('itineraryLayout').style.display = 'none';
+  setTimeout(() => map.invalidateSize(), 0);
+});
+document.getElementById('viewItineraryBtn').addEventListener('click', () => {
+  document.getElementById('viewItineraryBtn').classList.add('active');
+  document.getElementById('viewMapBtn').classList.remove('active');
+  document.getElementById('timelineWrap').style.display = 'none';
+  document.getElementById('mapLayout').style.display = 'none';
+  document.getElementById('itineraryLayout').style.display = '';
+  renderItineraryBoard();
+});
+
 function render(){
   renderTimeline();
   renderLegend();
   renderBaseBadge(allStops);
   renderMarkers(allStops, currentId);
   renderCards();
+  if (document.getElementById('itineraryLayout').style.display !== 'none'){
+    renderItineraryBoard();
+  }
 }
 
 (async function init(){
